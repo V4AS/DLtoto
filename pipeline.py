@@ -19,15 +19,6 @@ st.title("📸 AI-Powered Image Captioning System")
 binary_classifier_path = "models/binary_classifier_resnet18.pth"  # Store in 'models/' directory
 vit_gpt2_model_path = "models/vit_gpt2_captioning_model"  # Folder for ViT-GPT2 model
 
-# ✅ Ensure Models Exist Before Running the App
-if not os.path.exists(binary_classifier_path):
-    st.error("❌ Error: Binary classifier model file is missing! Ensure it's in `models/`.")
-    st.stop()
-
-if not os.path.exists(vit_gpt2_model_path):
-    st.error("❌ Error: ViT-GPT2 model folder is missing! Ensure it's in `models/`.")
-    st.stop()
-
 # ✅ Define ResNet-18 Binary Classifier Model
 class PhotoClassifier(nn.Module):
     def __init__(self):
