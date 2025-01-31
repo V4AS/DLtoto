@@ -1,2 +1,2 @@
-binary_classifier_resnet18.pth
-vit_gpt2_captioning_model/
+models/
+*.pth

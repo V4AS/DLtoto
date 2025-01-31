@@ -7,6 +7,7 @@ from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoToken
 from PIL import Image
 import requests
 from io import BytesIO
+import os
 import logging
 
 # ✅ Silence Unnecessary Logs
@@ -14,11 +15,24 @@ logging.getLogger("transformers").setLevel(logging.ERROR)
 
 st.title("📸 AI-Powered Image Captioning System")
 
+# ✅ Define Paths for Local Models
+binary_classifier_path = "models/binary_classifier_resnet18.pth"  # Store in 'models/' directory
+vit_gpt2_model_path = "models/vit_gpt2_captioning_model"  # Folder for ViT-GPT2 model
+
+# ✅ Ensure Models Exist Before Running the App
+if not os.path.exists(binary_classifier_path):
+    st.error("❌ Error: Binary classifier model file is missing! Ensure it's in `models/`.")
+    st.stop()
+
+if not os.path.exists(vit_gpt2_model_path):
+    st.error("❌ Error: ViT-GPT2 model folder is missing! Ensure it's in `models/`.")
+    st.stop()
+
 # ✅ Define ResNet-18 Binary Classifier Model
 class PhotoClassifier(nn.Module):
     def __init__(self):
         super(PhotoClassifier, self).__init__()
-        self.model = models.resnet18(weights=None)  # Updated to avoid warnings
+        self.model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         self.model.fc = nn.Linear(self.model.fc.in_features, 1)  # Binary Classification (1 output node)
 
     def forward(self, x):
@@ -26,11 +40,10 @@ class PhotoClassifier(nn.Module):
 
 # ✅ Load the trained binary classifier
 photo_classifier = PhotoClassifier()
-photo_classifier.load_state_dict(torch.load("binary_classifier_resnet18.pth", map_location="cpu", weights_only=True))
+photo_classifier.load_state_dict(torch.load(binary_classifier_path, map_location="cpu"))
 photo_classifier.eval()  # Set to evaluation mode
 
 # ✅ Load ViT-GPT2 Captioning Model from Local Folder
-vit_gpt2_model_path = "vit_gpt2_captioning_model"
 model = VisionEncoderDecoderModel.from_pretrained(vit_gpt2_model_path).to("cpu")
 processor = ViTImageProcessor.from_pretrained(vit_gpt2_model_path)
 tokenizer = AutoTokenizer.from_pretrained(vit_gpt2_model_path)
@@ -38,13 +51,13 @@ tokenizer = AutoTokenizer.from_pretrained(vit_gpt2_model_path)
 def load_image(url):
     """Load an image from a URL with error handling."""
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}  # ✅ Some websites block default Python requests
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()  # ✅ Raises error if request fails (403, 404, etc.)
+        headers = {"User-Agent": "Mozilla/5.0"}  
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
         return Image.open(BytesIO(response.content)).convert("RGB")
     except requests.exceptions.RequestException as e:
-        st.error(f"❌ Error loading image: {e}")
-        return None  # ✅ Return None to handle errors in the UI
+        st.error(f"🚫 Image loading failed: {e}")
+        return None
 
 def is_photo(image):
     """Classify an image as Photo (1) or Not a Photo (0) using ResNet-18."""
@@ -52,12 +65,12 @@ def is_photo(image):
         transforms.Resize((224, 224)),
         transforms.ToTensor()
     ])
-    image_tensor = transform(image).unsqueeze(0)  # Add batch dimension
+    image_tensor = transform(image).unsqueeze(0)  
 
     with torch.no_grad():
         output = photo_classifier(image_tensor)
     
-    return torch.sigmoid(output).item() > 0.5  # ✅ Use sigmoid for binary output
+    return torch.sigmoid(output).item() > 0.5  
 
 def generate_caption_vit_gpt2(image):
     """Generate a caption using ViT-GPT2 model."""
@@ -96,3 +109,4 @@ if image:
         st.download_button("Download Caption", caption, file_name="caption.txt")
     else:
         st.error("🚫 This is NOT a photo! Captioning will not be performed.")
+        st.stop()  # ✅ Prevent further execution
